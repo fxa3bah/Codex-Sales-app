@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI Sales Insights Hub</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --panel: #111827;
+      --accent: #22c55e;
+      --border: #1f2937;
+      --text: #e5e7eb;
+      --muted: #9ca3af;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+    }
+    header {
+      padding: 24px;
+      border-bottom: 1px solid var(--border);
+      background: linear-gradient(135deg, rgba(34,197,94,0.12), rgba(56,189,248,0.08));
+    }
+    h1 { margin: 0 0 6px; font-size: 28px; }
+    h2 { margin: 0 0 12px; font-size: 18px; }
+    p { margin: 0 0 12px; color: var(--muted); }
+    main { max-width: 1200px; margin: 24px auto; padding: 0 16px 40px; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.35);
+    }
+    label { display: block; margin-bottom: 6px; font-weight: 600; }
+    textarea, select, input {
+      width: 100%;
+      padding: 10px 12px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: #0b1220;
+      color: var(--text);
+      font-size: 14px;
+    }
+    textarea { min-height: 190px; resize: vertical; }
+    .muted { color: var(--muted); font-size: 13px; }
+    .btn-row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px; }
+    button {
+      padding: 10px 16px;
+      border: none;
+      border-radius: 10px;
+      font-weight: 700;
+      cursor: pointer;
+      background: var(--accent);
+      color: #052e16;
+      box-shadow: 0 10px 25px rgba(34,197,94,0.25);
+      transition: transform 0.1s ease, box-shadow 0.1s ease;
+    }
+    button:active { transform: translateY(1px); box-shadow: 0 6px 15px rgba(34,197,94,0.2); }
+    #status { margin-top: 12px; }
+    .pill { display: inline-block; padding: 4px 10px; border-radius: 999px; background: #1f2937; margin-right: 8px; font-size: 12px; }
+    #result { white-space: pre-wrap; background: #0b1220; padding: 12px; border-radius: 12px; min-height: 120px; border: 1px solid var(--border); }
+    @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>AI Sales Insights Hub</h1>
+    <p>Analyze sales data, summarize trends, predict pipeline milestones, and draft communications with guardrails.</p>
+    <div class="pill">Usage limit: 20 requests / 15 minutes</div>
+    <div class="pill">API key is stored server-side only</div>
+    <div class="pill">Supabase contexts & logging enabled</div>
+  </header>
+
+  <main>
+    <section class="grid">
+      <div class="panel">
+        <h2>Sales Data & Context</h2>
+        <label for="salesData">Sales payload</label>
+        <textarea id="salesData"></textarea>
+        <p class="muted">Paste JSON, CSV-like rows, or a quick note. We never send keys to the client; the server calls the AI provider.</p>
+
+        <div class="grid" style="margin-top: 12px; gap: 12px;">
+          <div>
+            <label for="analysisType">Analysis type</label>
+            <select id="analysisType">
+              <option value="trends">Trend summary</option>
+              <option value="pipeline">Pipeline milestones</option>
+              <option value="communications">Draft communications</option>
+            </select>
+          </div>
+          <div>
+            <label for="season">Season / period</label>
+            <input id="season" placeholder="e.g., Q3, Holiday" list="seasonOptions" />
+            <datalist id="seasonOptions"></datalist>
+          </div>
+        </div>
+
+        <div class="grid" style="margin-top: 12px; gap: 12px;">
+          <div>
+            <label for="customer">Customer</label>
+            <input id="customer" placeholder="Customer or account" list="customerOptions" />
+            <datalist id="customerOptions"></datalist>
+          </div>
+          <div>
+            <label for="brand">Brand</label>
+            <input id="brand" placeholder="Brand or category" list="brandOptions" />
+            <datalist id="brandOptions"></datalist>
+          </div>
+        </div>
+
+        <div class="btn-row">
+          <button id="refreshContexts" type="button" style="background:#a78bfa; color:#0b1220; box-shadow:0 10px 25px rgba(167,139,250,0.25);">Refresh contexts</button>
+          <span id="contextsStatus" class="muted"></span>
+        </div>
+
+        <div class="btn-row">
+          <button id="run">Run AI analysis</button>
+          <button id="loadSample" type="button" style="background:#38bdf8; color:#0b1220; box-shadow:0 10px 25px rgba(56,189,248,0.25);">Load sample data</button>
+        </div>
+        <div id="status" class="muted"></div>
+      </div>
+
+      <div class="panel">
+        <h2>Insights</h2>
+        <div id="result">Waiting for analysis...</div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const sampleData = [
+      { customer: 'Northwind Outfitters', brand: 'ActiveLife', season: 'Spring', stage: 'Proposal', amount: 185000, notes: 'Bundle with accessories' },
+      { customer: 'Summit Stores', brand: 'ActiveLife', season: 'Summer', stage: 'Negotiation', amount: 220000, notes: 'Close date likely this month' },
+      { customer: 'Harbor Co-op', brand: 'UrbanFlex', season: 'Holiday', stage: 'Committed', amount: 310000 },
+      { customer: 'Northwind Outfitters', brand: 'UrbanFlex', season: 'Holiday', stage: 'Discovery', amount: 95000 },
+      { customer: 'Metro Sports', brand: 'TrailWorks', season: 'Spring', stage: 'Proposal', amount: 140000 }
+    ];
+
+    const elements = {
+      run: document.getElementById('run'),
+      loadSample: document.getElementById('loadSample'),
+      refreshContexts: document.getElementById('refreshContexts'),
+      status: document.getElementById('status'),
+      contextsStatus: document.getElementById('contextsStatus'),
+      result: document.getElementById('result'),
+      salesData: document.getElementById('salesData'),
+      analysisType: document.getElementById('analysisType'),
+      customer: document.getElementById('customer'),
+      brand: document.getElementById('brand'),
+      season: document.getElementById('season')
+    };
+
+    const setStatus = (text, isError = false) => {
+      elements.status.textContent = text;
+      elements.status.style.color = isError ? '#f87171' : '#9ca3af';
+    };
+
+    const setContextsStatus = (text, isError = false) => {
+      elements.contextsStatus.textContent = text;
+      elements.contextsStatus.style.color = isError ? '#f87171' : '#9ca3af';
+    };
+
+    const setResult = (text) => {
+      elements.result.textContent = text;
+    };
+
+    const applyOptions = (id, values = []) => {
+      const dataList = document.getElementById(id);
+      if (!dataList) return;
+      dataList.innerHTML = values.map((val) => `<option value=\"${val}\"></option>`).join('');
+    };
+
+    const loadContexts = async () => {
+      setContextsStatus('Loading contexts from Supabase...');
+      try {
+        const response = await fetch('/api/contexts');
+        const data = await response.json();
+
+        applyOptions('customerOptions', data.customers || []);
+        applyOptions('brandOptions', data.brands || []);
+        applyOptions('seasonOptions', data.seasons || []);
+
+        setContextsStatus(`Contexts source: ${data.source || 'unknown'}.`);
+      } catch (error) {
+        console.error(error);
+        setContextsStatus('Unable to load contexts. Using manual input.', true);
+      }
+    };
+
+    const runAnalysis = async () => {
+      setStatus('Sending data to server-side AI provider...');
+      setResult('Thinking...');
+
+      try {
+        const payload = {
+          salesData: elements.salesData.value.trim(),
+          analysisType: elements.analysisType.value,
+          filters: {
+            customer: elements.customer.value.trim(),
+            brand: elements.brand.value.trim(),
+            season: elements.season.value.trim()
+          }
+        };
+
+        const response = await fetch('/api/analyze', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          setStatus(data.error || 'Unable to complete the request.', true);
+          setResult(data.data || '');
+          return;
+        }
+
+        setStatus('Complete.');
+        setResult(data.result || 'No insights returned.');
+      } catch (error) {
+        console.error(error);
+        setStatus('Something went wrong. Please try again.', true);
+        setResult('');
+      }
+    };
+
+    elements.run.addEventListener('click', (e) => {
+      e.preventDefault();
+      runAnalysis();
+    });
+
+    elements.loadSample.addEventListener('click', () => {
+      elements.salesData.value = JSON.stringify(sampleData, null, 2);
+      setStatus('Loaded sample data. Adjust context and run analysis.');
+    });
+
+    elements.refreshContexts.addEventListener('click', () => {
+      loadContexts();
+    });
+
+    // Load sample by default for speed
+    elements.salesData.value = JSON.stringify(sampleData, null, 2);
+    loadContexts();
+  </script>
+</body>
+</html>
